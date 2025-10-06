@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,18 +17,73 @@ import {
   Award,
   Globe
 } from "lucide-react";
-import Logo from "@/assets/YagnaTechWM.png"; // Adjust the path as necessary
+import Logo from "@/assets/YagnaTechWM.png";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { loginUser, loading, user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  // Show loading only when checking initial auth
+  if (loading && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render login form if we have a user (will redirect)
+  if (user) {
+    return null;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Authentication logic will be implemented in phase 2
-    console.log("Login attempt:", { email, password, rememberMe });
+    setApiError(null);
+
+    try {
+      await loginUser({ email, password });
+      console.log("Login success");
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Login error:", err);
+      if (err && typeof err === 'object' && 'response' in err) {
+        interface ErrorWithResponse {
+          response?: {
+            data?: {
+              message?: string;
+              error?: string;
+            };
+          };
+        }
+        const error = err as ErrorWithResponse;
+        setApiError(
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          "Login failed. Please check your credentials and try again."
+        );
+      } else if (err instanceof Error) {
+        setApiError(err.message);
+      } else {
+        setApiError("Login failed. Please try again.");
+      }
+    }
   };
 
   const benefits = [
@@ -53,7 +109,7 @@ const Login = () => {
     }
   ];
 
-  return (
+   return (
     <div className="min-h-screen bg-gradient-subtle">
       <div className="container-ngo py-8">
         {/* Back to Home */}
@@ -75,15 +131,13 @@ const Login = () => {
     className="w-80 h-auto rounded-lg  object-contain "
   />
 </div>
-
-
           {/* Right Side - Login Form */}
           <div className="w-full max-w-md mx-auto">
-            <Card className="card-ngo border-0">
+            <Card className="card-ngo border-0 shadow-lg">
               <CardHeader className="text-center space-y-2">
                 <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
                 <CardDescription>
-                  Enter your credentials 
+                  Enter your credentials to access your account
                 </CardDescription>
               </CardHeader>
 
@@ -101,6 +155,7 @@ const Login = () => {
                         onChange={(e) => setEmail(e.target.value)}
                         className="pl-10"
                         required
+                        disabled={loading}
                       />
                     </div>
                   </div>
@@ -117,6 +172,7 @@ const Login = () => {
                         onChange={(e) => setPassword(e.target.value)}
                         className="pl-10 pr-10"
                         required
+                        disabled={loading}
                       />
                       <Button
                         type="button"
@@ -124,6 +180,7 @@ const Login = () => {
                         size="sm"
                         className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
                         onClick={() => setShowPassword(!showPassword)}
+                        disabled={loading}
                       >
                         {showPassword ? (
                           <EyeOff className="w-4 h-4" />
@@ -140,46 +197,53 @@ const Login = () => {
                         id="remember"
                         checked={rememberMe}
                         onCheckedChange={(checked) => setRememberMe(checked === true)}
+                        disabled={loading}
                       />
                       <Label htmlFor="remember" className="text-sm">
                         Remember me
                       </Label>
                     </div>
-                    <Button variant="link" className="text-sm p-0 h-auto">
-                      Forgot password?
+                    <Button
+                      variant="link"
+                      className="text-sm p-0 h-auto"
+                      disabled={loading}
+                      asChild
+                    >
+                      <Link to="/forgot-password">Forgot password?</Link>
                     </Button>
                   </div>
+
+                  {apiError && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                      {apiError}
+                    </div>
+                  )}
 
                   <Button 
                     type="submit" 
                     className="w-full bg-gradient-hero border-0" 
                     size="lg"
+                    disabled={loading}
                   >
-                    Sign In
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Signing In...
+                      </>
+                    ) : (
+                      "Sign In"
+                    )}
                   </Button>
                 </form>
 
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">
                     Don't have an account?{" "}
-                    <Button variant="link" className="p-0 h-auto" asChild>
+                    <Button variant="link" className="p-0 h-auto" asChild disabled={loading}>
                       <Link to="/signup">Sign Up</Link>
                     </Button>
                   </p>
                 </div>
-
-                {/* <div className="text-center pt-4 border-t border-border/50">
-                  <p className="text-xs text-muted-foreground">
-                    By signing in, you agree to our{" "}
-                    <Button variant="link" className="p-0 h-auto text-xs">
-                      Terms of Service
-                    </Button>{" "}
-                    and{" "}
-                    <Button variant="link" className="p-0 h-auto text-xs">
-                      Privacy Policy
-                    </Button>
-                  </p>
-                </div> */}
               </CardContent>
             </Card>
 
